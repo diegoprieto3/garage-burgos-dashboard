@@ -5,7 +5,6 @@ exports.handler = async function(event, context) {
   const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImhheG96amFoY25rdGJsaWVwaGR4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODIyMjgwMzIsImV4cCI6MjA5NzgwNDAzMn0.f5hw4q11wtPeTU6A21xaX9qJdCkFdMWZ1qCKOrwaeZE';
 
   try {
-    // Fetch call list
     const res = await fetch(`https://api.vapi.ai/call?limit=100&assistantId=${ASSISTANT_ID}`, {
       headers: { 'Authorization': `Bearer ${VAPI_API_KEY}` }
     });
@@ -14,7 +13,6 @@ exports.handler = async function(event, context) {
     const calls = Array.isArray(data) ? data : (data.results || data.calls || []);
 
     for (const c of calls) {
-      // Fetch full detail for each call
       const detailRes = await fetch(`https://api.vapi.ai/call/${c.id}`, {
         headers: { 'Authorization': `Bearer ${VAPI_API_KEY}` }
       });
@@ -52,9 +50,13 @@ exports.handler = async function(event, context) {
           const m = msgs[i];
           if ((m.role === 'bot' || m.role === 'assistant') &&
               ((m.message || '').toLowerCase().includes('ayudar') ||
-               (m.message || '').toLowerCase().includes('motivo'))) {
+               (m.message || '').toLowerCase().includes('motivo') ||
+               (m.message || '').toLowerCase().includes('puedo hacer') ||
+               (m.message || '').toLowerCase().includes('en qué'))) {
             const nextUser = msgs.slice(i + 1).find(u => u.role === 'user');
-            if (nextUser) callReason = (nextUser.message || '').trim();
+            if (nextUser) {
+              callReason = (nextUser.message || '').trim();
+            }
             break;
           }
         }
@@ -77,7 +79,8 @@ exports.handler = async function(event, context) {
         recording_url: detail.artifact?.recordingUrl || detail.recordingUrl || null,
         summary: detail.artifact?.summary || detail.summary || null,
         end_reason: detail.endedReason || detail.status || null,
-        transcript: typeof transcript === 'string' ? transcript : JSON.stringify(msgs)
+        transcript: typeof transcript === 'string' ? transcript : JSON.stringify(msgs),
+        call_reason: callReason
       };
 
       await fetch(`${SUPABASE_URL}/rest/v1/calls`, {
