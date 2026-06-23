@@ -58,6 +58,7 @@ body { font-family: 'Inter', sans-serif; background: var(--bg); color: var(--tex
 .call-right { display: flex; align-items: center; gap: 12px; }
 .pill { font-size: 11px; padding: 3px 10px; border-radius: 20px; font-weight: 500; }
 .pill-ended { background: #f0eef8; color: var(--muted); }
+.pill-archived { background: #fff3e0; color: #e65100; }
 .chevron { color: var(--muted); font-size: 14px; transition: transform 0.2s; }
 .call-card.open .chevron { transform: rotate(180deg); }
 .call-detail { display: none; margin-top: 1rem; padding-top: 1rem; border-top: 0.5px solid var(--border); }
@@ -67,6 +68,7 @@ body { font-family: 'Inter', sans-serif; background: var(--bg); color: var(--tex
 .audio-player { width: 100%; height: 36px; border-radius: 8px; outline: none; accent-color: var(--purple); }
 .audio-wrap { background: var(--surface2); border: 0.5px solid var(--border); border-radius: 10px; padding: 10px 14px; display: flex; flex-direction: column; gap: 6px; }
 .audio-wrap audio { width: 100%; }
+.audio-unavailable { background: var(--surface2); border: 0.5px solid var(--border); border-radius: 10px; padding: 10px 14px; font-size: 12px; color: var(--muted); display: flex; align-items: center; gap: 8px; }
 .detail-text { font-size: 13px; color: var(--text); line-height: 1.65; }
 .transcript-wrap { max-height: 260px; overflow-y: auto; border: 0.5px solid var(--border); border-radius: 8px; padding: 10px 14px; background: var(--surface2); }
 .t-line { font-size: 12px; padding: 4px 0; border-bottom: 0.5px solid rgba(124,58,237,0.08); line-height: 1.5; }
@@ -81,6 +83,7 @@ body { font-family: 'Inter', sans-serif; background: var(--bg); color: var(--tex
 .empty-state { text-align: center; padding: 4rem 1rem; color: var(--muted); }
 .empty-icon { font-size: 40px; margin-bottom: 12px; }
 .loading-state { text-align: center; padding: 3rem; color: var(--muted); font-size: 14px; }
+.archive-banner { background: #fff8e1; border: 0.5px solid #ffe082; border-radius: 10px; padding: 10px 16px; font-size: 12px; color: #7c6000; margin-bottom: 1.25rem; display: flex; align-items: center; gap: 8px; }
 @keyframes spin { to { transform: rotate(360deg); } }
 .spin { display: inline-block; animation: spin 1s linear infinite; }
 @media (max-width: 900px) { .sidebar { width: 200px; } .main { margin-left: 200px; padding: 1.5rem; } .metrics { grid-template-columns: repeat(2, 1fr); } }
@@ -92,7 +95,7 @@ body { font-family: 'Inter', sans-serif; background: var(--bg); color: var(--tex
 }
 .bottom-nav { display: none; position: fixed; bottom: 0; left: 0; right: 0; background: #0a0a0a; border-top: 0.5px solid rgba(124,58,237,0.25); padding: 8px 0 max(8px, env(safe-area-inset-bottom)); z-index: 100; }
 .bottom-nav-inner { display: flex; justify-content: space-around; align-items: center; }
-.bottom-nav-item { display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 6px 20px; cursor: pointer; border-radius: 10px; color: #666; font-size: 10px; font-weight: 500; letter-spacing: 0.3px; transition: color 0.15s; user-select: none; }
+.bottom-nav-item { display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 6px 16px; cursor: pointer; border-radius: 10px; color: #666; font-size: 10px; font-weight: 500; letter-spacing: 0.3px; transition: color 0.15s; user-select: none; }
 .bottom-nav-item svg { width: 22px; height: 22px; }
 .bottom-nav-item.active { color: var(--purple-light); }
 .bottom-nav-item.active svg { stroke: var(--purple-light); }
@@ -120,7 +123,6 @@ body { font-family: 'Inter', sans-serif; background: var(--bg); color: var(--tex
 </head>
 <body>
 
-<!-- PASSWORD OVERLAY -->
 <div id="login-overlay">
   <div class="login-box">
     <div class="login-logo">
@@ -175,6 +177,10 @@ body { font-family: 'Inter', sans-serif; background: var(--bg); color: var(--tex
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
       Analíticas
     </div>
+    <div class="nav-item" id="nav-archivo" onclick="showSection('archivo')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M21 8v13H3V8"/><path d="M1 3h22v5H1z"/><path d="M10 12h4"/></svg>
+      Archivo
+    </div>
   </nav>
   <div class="sidebar-footer">Powered by Nova Marketing Agency<br/>novamarketingagency.org</div>
 </aside>
@@ -187,7 +193,7 @@ body { font-family: 'Inter', sans-serif; background: var(--bg); color: var(--tex
     </div>
     <div class="top-actions">
       <div class="badge-live"><div class="dot-pulse"></div> Live</div>
-      <button class="btn-refresh" onclick="loadCalls()">
+      <button class="btn-refresh" onclick="refreshCurrent()">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 11-2.12-9.36L23 10"/></svg>
         Actualizar
       </button>
@@ -229,12 +235,23 @@ body { font-family: 'Inter', sans-serif; background: var(--bg); color: var(--tex
       <div class="chart-card"><div class="card-title">Llamadas por mes</div><div style="position:relative;height:200px;"><canvas id="monthChart"></canvas></div></div>
     </div>
   </div>
+
+  <!-- ARCHIVO -->
+  <div id="section-archivo" style="display:none;">
+    <div class="archive-banner">
+      🗄️ Estas llamadas están guardadas permanentemente en la base de datos. El audio solo está disponible durante los primeros 14 días.
+    </div>
+    <div class="card-title">Llamadas archivadas</div>
+    <div id="archivo-list"><div class="loading-state"><span class="spin">↻</span> Cargando archivo...</div></div>
+  </div>
 </main>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
 <script>
 const CORRECT_PASSWORD = 'GarageBurgos2026!';
 const STORAGE_KEY = 'garage_burgos_dashboard_auth';
+const SUPABASE_URL = 'https://haxozjahcnktbliephdx.supabase.co';
+const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImhheG96amFoY25rdGJsaWVwaGR4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODIyMjgwMzIsImV4cCI6MjA5NzgwNDAzMn0.f5hw4q11wtPeTU6A21xaX9qJdCkFdMWZ1qCKOrwaeZE';
 
 function checkAuth() {
   if (localStorage.getItem(STORAGE_KEY) === 'true') {
@@ -275,6 +292,12 @@ const ASSISTANT_ID = 'e228da9c-4dec-4f3b-b8ea-f975aa0d7d5e';
 let chartInstance = null;
 let monthChartInstance = null;
 let allCalls = [];
+let currentSection = 'dashboard';
+
+function refreshCurrent() {
+  if (currentSection === 'archivo') loadArchive();
+  else loadCalls();
+}
 
 async function loadRecording(audioId, callId) {
   const audio = document.getElementById('audio-' + audioId);
@@ -297,6 +320,10 @@ function getDuration(c) {
   if (c.durationSeconds && c.durationSeconds > 0) return c.durationSeconds;
   if (c.startedAt && c.endedAt) {
     const diff = (new Date(c.endedAt) - new Date(c.startedAt)) / 1000;
+    return diff > 0 ? diff : 0;
+  }
+  if (c.started_at && c.ended_at) {
+    const diff = (new Date(c.ended_at) - new Date(c.started_at)) / 1000;
     return diff > 0 ? diff : 0;
   }
   return 0;
@@ -323,41 +350,96 @@ function toggleCard(prefix, id) {
   if (card) card.classList.toggle('open');
 }
 function showSection(section) {
-  ['dashboard','calllog','analytics'].forEach(s => {
+  currentSection = section;
+  ['dashboard','calllog','analytics','archivo'].forEach(s => {
     document.getElementById('section-'+s).style.display = s===section ? '' : 'none';
-    document.getElementById('nav-'+s).classList.toggle('active', s===section);
+    const nav = document.getElementById('nav-'+s);
+    if (nav) nav.classList.toggle('active', s===section);
   });
   const titles = {
     dashboard: ['Garage Burgos','Recepcionista Virtual — Panel de Llamadas'],
     calllog: ['Registro de Llamadas','Todas las llamadas entrantes'],
-    analytics: ['Analíticas','Resumen de rendimiento']
+    analytics: ['Analíticas','Resumen de rendimiento'],
+    archivo: ['Archivo','Llamadas guardadas permanentemente']
   };
   document.getElementById('page-title').textContent = titles[section][0];
   document.getElementById('page-sub').textContent = titles[section][1];
   if (section === 'calllog') renderCallLogFull(allCalls);
   if (section === 'analytics') renderAnalytics(allCalls);
-  ['dashboard','calllog','analytics'].forEach(s => {
+  if (section === 'archivo') loadArchive();
+  ['dashboard','calllog','analytics','archivo'].forEach(s => {
     const mob = document.getElementById('mob-'+s);
     if (mob) mob.classList.toggle('active', s===section);
   });
 }
-function renderTranscript(messages) {
-  if (!messages) return '<span style="color:#888;font-size:12px;">Transcripción no disponible</span>';
-  if (typeof messages === 'string' && messages.trim()) {
-    return messages.split('\n').filter(l=>l.trim()).map(l=>`<div class="t-line">${l}</div>`).join('');
-  }
-  if (Array.isArray(messages) && messages.length) {
-    return messages.map(m => {
-      const isAI = m.role==='assistant'||m.role==='bot';
-      const isUser = m.role==='user';
-      if (m.role==='system') return '';
-      const label = isAI ? '<span class="t-ai">IA:</span>' : (isUser ? '<span class="t-user">Cliente:</span>' : `<span>${m.role||''}:</span>`);
-      const text = m.content||m.message||m.text||'';
-      if (!text.trim()) return '';
-      return `<div class="t-line">${label} ${text}</div>`;
-    }).filter(Boolean).join('');
+function renderTranscript(transcript) {
+  if (!transcript) return '<span style="color:#888;font-size:12px;">Transcripción no disponible</span>';
+  if (typeof transcript === 'string' && transcript.trim()) {
+    try {
+      const parsed = JSON.parse(transcript);
+      if (Array.isArray(parsed)) {
+        return parsed.map(m => {
+          if (m.role === 'system') return '';
+          const isAI = m.role==='assistant'||m.role==='bot';
+          const isUser = m.role==='user';
+          const label = isAI ? '<span class="t-ai">IA:</span>' : (isUser ? '<span class="t-user">Cliente:</span>' : `<span>${m.role}:</span>`);
+          const text = m.content||m.message||m.text||'';
+          if (!text.trim()) return '';
+          return `<div class="t-line">${label} ${text}</div>`;
+        }).filter(Boolean).join('');
+      }
+    } catch(e) {}
+    return transcript.split('\n').filter(l=>l.trim()).map(l=>`<div class="t-line">${l}</div>`).join('');
   }
   return '<span style="color:#888;font-size:12px;">Transcripción no disponible</span>';
+}
+function isOlderThan14Days(iso) {
+  if (!iso) return false;
+  return (Date.now() - new Date(iso).getTime()) > 14 * 24 * 60 * 60 * 1000;
+}
+function archivedCardHTML(c) {
+  const id = c.id;
+  const phone = c.caller_number || 'Llamante desconocido';
+  const name = c.caller_name;
+  const dur = c.duration || 0;
+  const date = fmtDate(c.started_at);
+  const ended = c.end_reason || 'ended';
+  const audioOld = isOlderThan14Days(c.started_at);
+  const recordingUrl = c.recording_url;
+  const summary = c.summary;
+  const callReason = c.call_reason;
+  const transcript = c.transcript;
+
+  let audioHTML = '';
+  if (!recordingUrl) {
+    audioHTML = '';
+  } else if (audioOld) {
+    audioHTML = `<div class="detail-section"><div class="detail-label">📞 Grabación</div><div class="audio-unavailable">🔒 Audio no disponible — expiró después de 14 días</div></div>`;
+  } else {
+    audioHTML = `<div class="detail-section"><div class="detail-label">📞 Grabación</div><div class="audio-wrap"><audio class="audio-player" controls preload="none" id="audio-${id}">Tu navegador no soporta audio.</audio><button onclick="loadRecording('${id}','${id}')" style="font-size:11px;padding:4px 12px;background:var(--purple);color:#fff;border:none;border-radius:6px;cursor:pointer;font-family:inherit;margin-top:4px;">▶ Cargar grabación</button></div></div>`;
+  }
+
+  return `<div class="call-card" id="arc-${id}" onclick="toggleCard('arc-','${id}')">
+    <div class="call-row">
+      <div class="call-left">
+        <div class="call-avatar">${avatarText(phone)}</div>
+        <div>
+          <div class="call-phone">${name ? name+' — '+phone : phone}</div>
+          <div class="call-meta"><span>${date}</span><span>⏱ ${fmt(dur)}</span></div>
+        </div>
+      </div>
+      <div class="call-right">
+        <span class="pill pill-archived">archivado</span>
+        <span class="chevron">▾</span>
+      </div>
+    </div>
+    <div class="call-detail">
+      ${audioHTML}
+      ${callReason ? `<div class="detail-section"><div class="detail-label">Motivo de la llamada</div><div class="detail-text">${callReason}</div></div>` : ''}
+      ${summary ? `<div class="detail-section"><div class="detail-label">Resumen</div><div class="detail-text">${summary}</div></div>` : ''}
+      <div class="detail-section"><div class="detail-label">Transcripción</div><div class="transcript-wrap">${renderTranscript(transcript)}</div></div>
+    </div>
+  </div>`;
 }
 function callCardHTML(c, prefix='call-') {
   const id = c.id;
@@ -479,6 +561,28 @@ function renderAnalytics(calls) {
     });
   }
 }
+async function loadArchive() {
+  const list = document.getElementById('archivo-list');
+  if (!list) return;
+  list.innerHTML = '<div class="loading-state"><span class="spin">↻</span> Cargando archivo...</div>';
+  try {
+    const res = await fetch(`${SUPABASE_URL}/rest/v1/calls?assistant_id=eq.${ASSISTANT_ID}&order=started_at.desc&limit=200`, {
+      headers: {
+        'apikey': SUPABASE_KEY,
+        'Authorization': `Bearer ${SUPABASE_KEY}`
+      }
+    });
+    if (!res.ok) throw new Error('Supabase error ' + res.status);
+    const calls = await res.json();
+    if (!calls.length) {
+      list.innerHTML = `<div class="empty-state"><div class="empty-icon">🗄️</div><p>No hay llamadas archivadas aún.</p></div>`;
+      return;
+    }
+    list.innerHTML = calls.map(c => archivedCardHTML(c)).join('');
+  } catch(e) {
+    list.innerHTML = `<div class="empty-state"><div class="empty-icon">⚠️</div><p style="color:#c00;">Error al cargar el archivo.</p><span style="font-size:12px;">${e.message}</span></div>`;
+  }
+}
 async function fetchCallDetail(id) {
   try {
     const res = await fetch(`https://api.vapi.ai/call/${id}`, { headers:{'Authorization':'Bearer '+API_KEY} });
@@ -524,6 +628,10 @@ loadCalls();
     <div class="bottom-nav-item" id="mob-analytics" onclick="showSection('analytics')">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
       Analíticas
+    </div>
+    <div class="bottom-nav-item" id="mob-archivo" onclick="showSection('archivo')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M21 8v13H3V8"/><path d="M1 3h22v5H1z"/><path d="M10 12h4"/></svg>
+      Archivo
     </div>
   </div>
 </nav>
