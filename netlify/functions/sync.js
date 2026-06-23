@@ -5,7 +5,7 @@ exports.handler = async function(event, context) {
   const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImhheG96amFoY25rdGJsaWVwaGR4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODIyMjgwMzIsImV4cCI6MjA5NzgwNDAzMn0.f5hw4q11wtPeTU6A21xaX9qJdCkFdMWZ1qCKOrwaeZE';
 
   try {
-    // Fetch calls from Vapi
+    // Fetch call list
     const res = await fetch(`https://api.vapi.ai/call?limit=100&assistantId=${ASSISTANT_ID}`, {
       headers: { 'Authorization': `Bearer ${VAPI_API_KEY}` }
     });
@@ -13,20 +13,71 @@ exports.handler = async function(event, context) {
     const data = await res.json();
     const calls = Array.isArray(data) ? data : (data.results || data.calls || []);
 
-    // Upsert each call into Supabase
     for (const c of calls) {
-      const dur = c.duration || c.durationSeconds || 0;
+      // Fetch full detail for each call
+      const detailRes = await fetch(`https://api.vapi.ai/call/${c.id}`, {
+        headers: { 'Authorization': `Bearer ${VAPI_API_KEY}` }
+      });
+      const detail = detailRes.ok ? await detailRes.json() : c;
+
+      const msgs = detail.artifact?.messages || detail.messages || [];
+      const transcript = detail.artifact?.transcript || '';
+
+      // Extract caller name
+      let callerName = null;
+      if (Array.isArray(msgs)) {
+        for (let i = 0; i < msgs.length - 1; i++) {
+          const m = msgs[i];
+          if ((m.role === 'bot' || m.role === 'assistant') &&
+              ((m.message || '').toLowerCase().includes('nombre') ||
+               (m.message || '').toLowerCase().includes('gusto'))) {
+            const nextUser = msgs.slice(i + 1).find(u => u.role === 'user');
+            if (nextUser) {
+              const raw = (nextUser.message || '').trim();
+              const cleaned = raw.replace(/^(sí|si|claro|este)[.,]?\s*/i, '').replace(/\.$/, '').trim();
+              const words = cleaned.split(/\s+/);
+              if (words.length >= 1 && words.length <= 4 && !/[,?!]/.test(cleaned)) {
+                callerName = cleaned;
+              }
+            }
+            break;
+          }
+        }
+      }
+
+      // Extract call reason
+      let callReason = null;
+      if (Array.isArray(msgs)) {
+        for (let i = 0; i < msgs.length - 1; i++) {
+          const m = msgs[i];
+          if ((m.role === 'bot' || m.role === 'assistant') &&
+              ((m.message || '').toLowerCase().includes('ayudar') ||
+               (m.message || '').toLowerCase().includes('motivo'))) {
+            const nextUser = msgs.slice(i + 1).find(u => u.role === 'user');
+            if (nextUser) callReason = (nextUser.message || '').trim();
+            break;
+          }
+        }
+      }
+
+      // Duration
+      let dur = detail.duration || detail.durationSeconds || 0;
+      if (!dur && detail.startedAt && detail.endedAt) {
+        dur = Math.round((new Date(detail.endedAt) - new Date(detail.startedAt)) / 1000);
+      }
+
       const record = {
-        id: c.id,
-        assistant_id: c.assistantId || ASSISTANT_ID,
-        caller_number: c.customer?.number || c.phoneNumber || null,
-        caller_name: null,
+        id: detail.id,
+        assistant_id: detail.assistantId || ASSISTANT_ID,
+        caller_number: detail.customer?.number || detail.phoneNumber || null,
+        caller_name: callerName,
         duration: Math.round(dur),
-        started_at: c.startedAt || c.createdAt || null,
-        ended_at: c.endedAt || null,
-        recording_url: c.artifact?.recordingUrl || c.recordingUrl || null,
-        summary: c.artifact?.summary || c.summary || null,
-        end_reason: c.endedReason || c.status || null
+        started_at: detail.startedAt || detail.createdAt || null,
+        ended_at: detail.endedAt || null,
+        recording_url: detail.artifact?.recordingUrl || detail.recordingUrl || null,
+        summary: detail.artifact?.summary || detail.summary || null,
+        end_reason: detail.endedReason || detail.status || null,
+        transcript: typeof transcript === 'string' ? transcript : JSON.stringify(msgs)
       };
 
       await fetch(`${SUPABASE_URL}/rest/v1/calls`, {
