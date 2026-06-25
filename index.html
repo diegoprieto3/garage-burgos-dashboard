@@ -301,17 +301,22 @@ function refreshCurrent() {
 
 async function loadRecording(audioId, callId) {
   const audio = document.getElementById('audio-' + audioId);
+  const btn = audio ? audio.parentElement.querySelector('button') : null;
   if (!audio) return;
-  audio.parentElement.querySelector('button').textContent = 'Cargando...';
+  if (btn) btn.textContent = 'Cargando...';
   try {
     const res = await fetch(`/.netlify/functions/recording?callId=${callId}`);
     if (!res.ok) throw new Error('Error ' + res.status);
-    const blob = await res.blob();
-    audio.src = URL.createObjectURL(blob);
-    audio.play();
-    audio.parentElement.querySelector('button').style.display = 'none';
+    const data = await res.json();
+    if (data.url) {
+      audio.src = data.url;
+      audio.play();
+      if (btn) btn.style.display = 'none';
+    } else {
+      throw new Error('No URL');
+    }
   } catch(e) {
-    audio.parentElement.querySelector('button').textContent = 'Error al cargar';
+    if (btn) btn.textContent = 'Error al cargar';
   }
 }
 
